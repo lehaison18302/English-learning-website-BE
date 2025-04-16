@@ -25,6 +25,32 @@ exports.deleteTask = async (id) => {
     if (!deletedTask) throw new Error('Task not found');
     return deletedTask;
 };
+//admin: kiểm tra câu trả lời 
+// Kiểm tra câu trả lời của người dùng cho bài tập
+exports.checkAnswer = async (userID, questionID, answer) => {
+    try {
+        const question = await Exercise.findById(questionID); // Tìm câu hỏi từ bài tập
+        if (!question) throw new Error('Câu hỏi không tồn tại');
+        
+        const isCorrect = question.correctAnswer === answer; // Kiểm tra câu trả lời
+        const xpReward = isCorrect ? question.xpReward : 0; // Nếu đúng thì cộng XP
+
+        // Cập nhật XP cho người dùng nếu đúng
+        const user = await User.findById(userID);
+        if (isCorrect) {
+            user.xp += xpReward;
+            await user.save();
+        }
+
+        return {
+            correct: isCorrect,
+            xpReward: xpReward,
+            message: isCorrect ? 'Câu trả lời đúng' : 'Câu trả lời sai'
+        };
+    } catch (err) {
+        throw new Error(err.message);
+    }
+};
 
 // User: Lấy danh sách nhiệm vụ hàng ngày
 exports.getUserTasks = async (userID) => {
