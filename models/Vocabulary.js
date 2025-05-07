@@ -1,11 +1,18 @@
 const mongoose = require('mongoose');
 
-const VocabularySchema = new mongoose.Schema({
-  word: { type: String, required: true, unique: true },       // Từ vựng
-  meaning: { type: String, required: true },                  // Nghĩa
-  example: { type: String },                                  // Câu ví dụ
-  phonetic: { type: String },                                 // Phiên âm (optional)
-  createdAt: { type: Date, default: Date.now },
-});
+const vocabularySchema = new mongoose.Schema({
+    word: { type: String, required: true },
+    pronunciation: String,
+    audioUrl: String,
+    meaning: { type: String, required: true },
+    examples: [String],
+    skillID: { type: mongoose.Schema.Types.ObjectId, ref: 'Skill', required: true},
+    lessonID: { type: mongoose.Schema.Types.ObjectId, ref: 'Lesson', required: true},
+    courseID: { type: mongoose.Schema.Types.ObjectId, ref: 'Course', required: true},
+    meta: {
+        difficulty: { type: String, enum: ['easy', 'medium', 'hard'], default: 'medium' },
+        lastReviewed: Date,
+    }
+}, { timestamps: true });
 
-module.exports = mongoose.model('Vocabulary', VocabularySchema);
+module.exports = mongoose.model('Vocabulary', vocabularySchema);
