@@ -5,7 +5,9 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "nodemon server.js"
+    "start": "nodemon server.js",
+    "update-lesson-order": "node scripts/updateLessonOrder.js",
+    "update-exercises": "node scripts/updateExercises.js"
   },
   "author": "",
   "license": "ISC",

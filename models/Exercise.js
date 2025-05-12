@@ -13,8 +13,7 @@ const exerciseSchema = new mongoose.Schema({
     options: [String], // for 'fill-in-the-blank' and 'match' types
     correctAnswer: { type: String, required: true },
     audioUrl: String, // for 'listen' type
-    imageUrl: String,  
-    lessonID: { type: mongoose.Schema.Types.ObjectId, ref: 'Lesson', required: true },
+    imageUrl: String
 });
 
 module.exports = mongoose.model("Exercise", exerciseSchema);
