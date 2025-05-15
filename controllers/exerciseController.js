@@ -8,49 +8,45 @@ const exerciseController = {
         try {
             const { lessonId } = req.params;
 
-            // Kiểm tra lesson có tồn tại
+            // Tìm lesson theo id
             const lesson = await Lesson.findById(lessonId);
-            if (!lesson) {  
+            if (!lesson) {
                 return res.status(404).json({
                     success: false,
                     message: 'Lesson not found'
                 });
             }
 
-            // Lấy danh sách exercises của lesson
-            const exercises = await Exercise.find({ lessonID: lessonId })
+            // Lấy danh sách exercises theo mảng id trong lesson
+            const exercises = await Exercise.find({ _id: { $in: lesson.exercises } })
                 .populate('vocabularyIDs', 'word pronunciation meaning examples')
                 .sort({ createdAt: 1 });
 
-            // Nhóm exercises theo vocabulary
-            const exercisesByVocabulary = exercises.reduce((acc, exercise) => {
-                exercise.vocabularyIDs.forEach(vocab => {
-                    if (!acc[vocab._id]) {
-                        acc[vocab._id] = {
-                            vocabulary: vocab,
-                            exercises: []
-                        };
-                    }
-                    acc[vocab._id].exercises.push({
-                        _id: exercise._id,
-                        type: exercise.type,
-                        question: exercise.question,
-                        options: exercise.options,
-                        correctAnswer: exercise.correctAnswer,
-                        audioUrl: exercise.audioUrl,
-                        imageUrl: exercise.imageUrl
-                    });
-                });
-                return acc;
-            }, {});
-
             return res.status(200).json({
                 success: true,
-                data: Object.values(exercisesByVocabulary)
+                data: exercises
             });
 
         } catch (error) {
             console.error('Error in getExercisesByLesson:', error);
+            return res.status(500).json({
+                success: false,
+                message: 'Internal server error',
+                error: error.message
+            });
+        }
+    },
+
+    // Lấy tất cả thông tin của tất cả lesson
+    async getAllLessons(req, res) {
+        try {
+            const lessons = await Lesson.find();
+            return res.status(200).json({
+                success: true,
+                data: lessons
+            });
+        } catch (error) {
+            console.error('Error in getAllLessons:', error);
             return res.status(500).json({
                 success: false,
                 message: 'Internal server error',
