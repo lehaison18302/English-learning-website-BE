@@ -2,9 +2,10 @@
 const express = require('express');
 const pronounceRouter = express.Router();
 const Pronunciation = require('../models/Pronunciation');
+const verifyToken = require('../middleware/verifyToken');
 
 // GET /api/pronounce — Trả về danh sách pronunciation từ MongoDB
-pronounceRouter.get('/pronounce', async (req, res) => {
+pronounceRouter.get('/pronounce', verifyToken, async (req, res) => {
   try {
     const list = await Pronunciation.find().sort({ createdAt: -1 });
     res.json({ success: true, data: list });

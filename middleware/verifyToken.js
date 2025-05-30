@@ -1,6 +1,5 @@
 // middleware/verifyToken.js
-const admin = require("../firebase");
-const User = require("../models/User"); // model mongoose của bạn
+const admin = require("../config/firebase"); // import firebase admin SDK
 
 const verifyToken = async (req, res, next) => {
   const token = req.headers.authorization?.split("Bearer ")[1];
@@ -10,18 +9,12 @@ const verifyToken = async (req, res, next) => {
     const decoded = await admin.auth().verifyIdToken(token);
     req.firebaseUser = decoded;
 
-    // Kiểm tra và lưu user vào DB nếu chưa có
-    let user = await User.findOne({ firebaseUid: decoded.uid });
-    if (!user) {
-      user = await User.create({
-        firebaseUid: decoded.uid,
-        email: decoded.email,
-        name: decoded.name,
-        picture: decoded.picture,
-      });
-    }
+    // In thông tin user sau khi decode để test
+    console.log("Decoded Firebase User:", decoded);
 
-    req.user = user; // gán user từ DB
+    // Lấy custom claim isAdmin từ decoded (nếu có)
+    req.isAdmin = decoded.isAdmin === 1;
+
     next();
   } catch (err) {
     console.error("Lỗi xác thực Firebase:", err);
