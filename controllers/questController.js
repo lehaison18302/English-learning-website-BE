@@ -27,3 +27,11 @@ exports.deleteDailyTask = async (req, res) => {
         res.status(400).json({message: error.message });
     }
 };
+exports.deleteDailyTask = async (req, res) => {
+    try {
+        await QuestService.deleteTask(req.params.id);
+        res.status(200).json({ message: "Nhiệm vụ đã bị xóa" });
+    } catch (error) {
+        res.status(400).json({message: error.message });
+    }
+};
