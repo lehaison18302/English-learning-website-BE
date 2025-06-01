@@ -19,7 +19,7 @@ const exerciseController = {
 
             // Lấy danh sách exercises theo mảng id trong lesson
             const exercises = await Exercise.find({ _id: { $in: lesson.exercises } })
-                .populate('vocabularyIDs', 'word pronunciation meaning examples')
+                .populate('vocabularyID', 'word pronunciation meaning examples')
                 .sort({ createdAt: 1 });
 
             return res.status(200).json({
