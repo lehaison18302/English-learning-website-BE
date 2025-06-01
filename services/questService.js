@@ -5,148 +5,220 @@ const Lesson = require('../models/Lesson');
 const Exercise = require('../models/Exercise');
 const UserProgress = require('../models/UserProgress'); // Assuming you have a UserProgress model
 
-//admin tạo nhiệm vụ hàng ngày
-exports.createDailyTask = async (data) => {
-    const { title, type, target, xpReward } = data;
-    const newTask = new DailyTask({ title, type, target, xpReward});
-    return await newTask.save();
-};
-
-//admin cập nhật nhiệm vụ
-exports.updateTask = async (id, data) => {
-    const updatedTask = await DailyTask.findByIdAndUpdate(id, data, { new: true });
-    if (!updatedTask) throw new Error('Task not found');
-    return updatedTask;
-};
-
-// Admin: Xóa nhiệm vụ
-exports.deleteTask = async (id) => {
-    const deletedTask = await DailyTask.findByIdAndDelete(id);
-    if (!deletedTask) throw new Error('Task not found');
-    return deletedTask;
-};
-
-// User: Lấy danh sách nhiệm vụ hàng ngày
-exports.getUserTasks = async (userID) => {
-    const startOfDay = new Date().setHours(0, 0, 0, 0);
-    const progress = await UserDailyProgress.findOne({
-        userID,
-        date: { $gte: startOfDay},
-    }).populate('tasks.taskID');
-    if (!progress) throw new Error('No daily tasks found for this user');
-    return progress.tasks;
-};
-
-// User: Nhận nhiệm vụ hàng ngày mới
-exports.assignDailyTasks = async (userID) => {
-    const startOfDay = new Date().setHours(0, 0, 0, 0);
-    const existingProgress = await UserDailyProgress.findOne({
-        userID,
-        date: { $gte: startOfDay }
-    });
-    if (existingProgress) {
-        return existingProgress;
+function shuffleArray(array) {
+    for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
     }
+    return array;
+}
 
-    const tasks = await DailyTask.find({});
-    const userTasks = tasks.map((task) => ({
-        taskID: task._id,
-        progress: 0,
-        isCompleted: false,
-    }));
-    const newProgress = new UserDailyProgress({
-        userID,
-        tasks: userTasks,
-        date: startOfDay,
-    });
-    return await newProgress.save();
+const QuestService ={
+    async createDailyTask(data){
+        const { title, type, target, xpReward, isActive } = data;
+        const allowedTypes = ["learn", "review", "streak", "earn_xp"];
+        if (!allowedTypes.includes(type)) {
+            throw new Error(`Invalid task type: ${type}. Allowed types are: ${allowedTypes.join(', ')}`);
+        }
+        const newTask = new DailyTask({ title, type, target, xpReward, isActive});
+        return await newTask.save();
+    },
+
+    async updateDailyTask(taskId, data) {
+        if (data.type) {
+            const allowedTypes = ["learn", "review", "streak", "earn_xp"];
+            if (!allowedTypes.includes(data.type)) {
+                throw new Error(`Invalid task type: ${data.type}. Allowed types are: ${allowedTypes.join(', ')}`);
+            }
+        }
+        const updatedTask = await DailyTask.findByIdAndUpdate(taskId, data, { new: true });
+        if (!updatedTask) throw new Error('DailyTask not found for update');
+        return updatedTask;
+    },
+
+    async deleteDailyTask(taskId) {
+        const deletedTask = await DailyTask.findByIdAndDelete(taskId);
+        if (!deletedTask) throw new Error('DailyTask not found for deletion');
+        return { message: 'DailyTask deleted successfully', deletedTask }; // Trả về cả task đã xóa
+    },
+
+    async getAllDailyTasksForAdmin() {
+        return await DailyTask.find({});
+    },
+
+    /// USER ////
+    async assignDailyTasksToUser(userId) {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        let userDailyProgress = await UserDailyProgress.findOne({ userID: userId, date: { $gte: today } });
+
+        if (userDailyProgress && userDailyProgress.tasks && userDailyProgress.tasks.length > 0) {
+            return await userDailyProgress.populate('tasks.taskID');
+        }
+
+        const allActiveTasks = await DailyTask.find({ isActive: true });
+
+        if (allActiveTasks.length === 0) {
+            if (!userDailyProgress) {
+                userDailyProgress = new UserDailyProgress({ userID: userId, date: today, tasks: [] });
+                await userDailyProgress.save();
+            }
+            return userDailyProgress;
+        }
+
+        const shuffledTasks = shuffleArray([...allActiveTasks]);
+        const numberOfTasksToAssign = Math.min(Math.floor(Math.random() * 3) + 1, shuffledTasks.length);
+        const selectedTasks = shuffledTasks.slice(0, numberOfTasksToAssign);
+
+        const tasksForUser = selectedTasks.map(task => ({
+            taskID: task._id,
+            progress: 0,
+            isCompleted: false,
+        }));
+
+        if (userDailyProgress) {
+            userDailyProgress.tasks = tasksForUser;
+        } else {
+            userDailyProgress = new UserDailyProgress({
+                userID: userId,
+                date: today,
+                tasks: tasksForUser,
+            });
+        }
+        await userDailyProgress.save();
+        return await UserDailyProgress.findById(userDailyProgress._id).populate('tasks.taskID');
+    },
+
+    async getUserDailyTasks(userId) {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        let progress = await UserDailyProgress.findOne({
+            userID: userId,
+            date: { $gte: today },
+        }).populate('tasks.taskID');
+
+        if (!progress || !progress.tasks || progress.tasks.length === 0) {
+            progress = await this.assignDailyTasksToUser(userId);
+        }
+        return progress;
+    },
+
+    async handleEvent(userId, eventType, data = {}) {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const userDailyProgress = await UserDailyProgress.findOne({ userID: userId, date: { $gte: today } }).populate('tasks.taskID');
+
+        if (!userDailyProgress || !userDailyProgress.tasks || userDailyProgress.tasks.length === 0) {
+            return;
+        }
+
+        const user = await User.findById(userId);
+        if (!user) {
+            console.error(`User ${userId} not found for handling quest event.`);
+            return;
+        }
+
+        let tasksUpdated = false;
+        let totalXpFromTasksToday = 0;
+
+        for (const userTask of userDailyProgress.tasks) {
+            if (userTask.isCompleted || !userTask.taskID || !userTask.taskID.isActive) continue;
+
+            const taskDefinition = userTask.taskID;
+            let progressIncrement = 0;
+
+            switch (taskDefinition.type) {
+                case 'learn':
+                    if (eventType === 'LESSON_COMPLETED' && data.lessonId && taskDefinition.target === 1) {
+                        progressIncrement = 1;
+                    }
+                    break;
+                case 'streak':
+                    if ((eventType === 'USER_ACTIVE_TODAY' || (eventType === 'XP_GAINED' && data.xp > 0)) &&
+                        taskDefinition.target === 1 && (userTask.progress || 0) < 1) {
+                        progressIncrement = 1;
+                    }
+                    break;
+                case 'review':
+                    if (eventType === 'VOCABULARY_REVIEWED') {
+                        progressIncrement = data.count || 1;
+                    }
+                    break;
+                case 'earn_xp':
+                    if (eventType === 'XP_GAINED' && data.xp > 0) {
+                        progressIncrement = data.xp;
+                    }
+                    break;
+            }
+
+            if (progressIncrement > 0) {
+                const currentProgress = userTask.progress || 0;
+                userTask.progress = taskDefinition.target > 0 ? Math.min(currentProgress + progressIncrement, taskDefinition.target) : currentProgress + progressIncrement;
+                tasksUpdated = true;
+            }
+
+            if (taskDefinition.target > 0 && userTask.progress >= taskDefinition.target && !userTask.isCompleted) {
+                userTask.isCompleted = true;
+                userTask.completedAt = new Date();
+                totalXpFromTasksToday += taskDefinition.xpReward;
+                tasksUpdated = true;
+                console.log(`Task "${taskDefinition.title}" COMPLETED by user ${userId}. XP Gained: ${taskDefinition.xpReward}`);
+                if (taskDefinition.type === 'streak') {
+                    await this.updateStreak(user, true);
+                }
+            }
+        }
+
+        if (totalXpFromTasksToday > 0) {
+            user.xp = (user.xp || 0) + totalXpFromTasksToday;
+        }
+
+        if (tasksUpdated) {
+            await user.save();
+            await userDailyProgress.save();
+        }
+    },
+
+    async updateStreak(user, wasActiveToday = false) {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        const userStreak = (user.streak && typeof user.streak === 'object') ? { ...user.streak } : { current: 0, lastActive: null };
+        if (typeof userStreak.current !== 'number') userStreak.current = 0;
+
+
+        let lastActiveDate = userStreak.lastActive ? new Date(userStreak.lastActive) : null;
+        if (lastActiveDate) {
+            lastActiveDate.setHours(0, 0, 0, 0);
+        }
+
+        let streakNeedsSave = false;
+
+        if (wasActiveToday) {
+            if (!lastActiveDate || lastActiveDate.getTime() < today.getTime()) {
+                if (lastActiveDate && (today.getTime() - lastActiveDate.getTime() === 24 * 60 * 60 * 1000)) {
+                    userStreak.current = (userStreak.current || 0) + 1;
+                } else if (!lastActiveDate || (today.getTime() - lastActiveDate.getTime() > 24 * 60 * 60 * 1000)) {
+                    userStreak.current = 1;
+                }
+                userStreak.lastActive = new Date();
+                streakNeedsSave = true;
+            }
+        } else {
+            if (lastActiveDate && (today.getTime() - lastActiveDate.getTime() > 24 * 60 * 60 * 1000)) { // Lớn hơn 1 ngày
+                if (userStreak.current !== 0) {
+                    userStreak.current = 0;
+                    streakNeedsSave = true;
+                }
+            }
+        }
+
+        if (streakNeedsSave) {
+            user.streak = userStreak;
+            await user.save();
+        }
+    }
 };
-
-// User: Cập nhật tiến độ nhiệm vụ
-exports.updateTaskProgress = async (userID, taskId, progress) => {
-    const startOfDay = new Date().setHours(0, 0, 0, 0);
-    const userProgress = await UserDailyProgress.findOne({
-        userID,
-        date: { $gte: startOfDay }
-    });
-    
-    if (!userProgress) throw new Error('No daily tasks found for this user');
-
-    const task = userProgress.tasks.find(t => 
-        t.taskID.toString() === taskId && !t.isCompleted
-    );
-    if (!task) throw new Error('Task not found or already completed');
-
-    const dailyTask = await DailyTask.findById(taskId);
-    task.progress = Math.min(progress, dailyTask.target);
-    task.isCompleted = task.progress >= dailyTask.target;
-
-    await userProgress.save();
-    return userProgress;
-};
-
-// User: Hoàn thành nhiệm vụ (học bài mới, ôn tập)
-exports.completeTask = async (userID, taskId) => {
-    const startOfDay = new Date().setHours(0, 0, 0, 0);
-    const userProgress = await UserDailyProgress.findOne({
-        userID,
-        date: { $gte: startOfDay }
-    });
-    
-    const task = userProgress.tasks.find(t => 
-        t.taskID.toString() === taskId && !t.isCompleted
-    );
-    if (!task) throw new Error('Nhiệm vụ không tồn tại hoặc đã hoàn thành');
-
-    const dailyTask = await DailyTask.findById(taskId);
-    const user = await User.findById(userID);
-
-    // Cập nhật tiến độ
-    task.progress = dailyTask.target;
-    task.isCompleted = true;
-
-    // Cập nhật XP
-    user.xp += dailyTask.xpReward;
-
-    // Cập nhật streak
-    const lastActiveDate = user.streak.lastActive || new Date(0);
-    const isConsecutive = new Date().getDate() - lastActiveDate.getDate() === 1;
-    
-    user.streak.current = isConsecutive ? user.streak.current + 1 : 1;
-    user.streak.lastActive = new Date();
-
-    await user.save();
-    await userProgress.save();
-    
-    return { 
-        xpEarned: dailyTask.xpReward,
-        newStreak: user.streak.current 
-    };
-};
-
-// Lấy bài học mới cho nhiệm vụ
-exports.getNewLesson = async (userID) => {
-    const userProgress = await UserProgress.findOne({ userID: userID }).populate('currentSkill');
-    if (!userProgress) throw new Error('User progress not found');
-
-    const currentSkill = userProgress.currentSkill;
-    if (!currentSkill) throw new Error('Current skill not found');
-
-    const lastCompletedLesson = userProgress.completedLessons[userProgress.completedLessons.length - 1];
-    const nextLessonOrder = lastCompletedLesson ? lastCompletedLesson.lessonId.order + 1 : 1;
-
-    const nextLesson = await Lesson.findOne({ skillID: currentSkill._id, order: nextLessonOrder });
-    if (!nextLesson) throw new Error('Next lesson not found');
-    return nextLesson;
-};
-
-module.exports = {
-    createDailyTask: exports.createDailyTask,
-    updateTask: exports.updateTask,
-    deleteTask: exports.deleteTask,
-    getUserTasks: exports.getUserTasks,
-    assignDailyTasks: exports.assignDailyTasks,
-    updateTaskProgress: exports.updateTaskProgress,
-    completeTask: exports.completeTask,
-    getNewLesson: exports.getNewLesson
-};
+module.exports = QuestService;
