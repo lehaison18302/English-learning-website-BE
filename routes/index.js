@@ -1,11 +1,10 @@
-const express = require('express');
-const router = express.Router();
 const questRoutes = require('./questRoutes');
+const pronounceRouter = require('./pronounceRoutes');
+const exerciseRouter = require('./exerciseRoutes');
+const rootRouter = require("express").Router();
 
-router.get('/', (req, res) => {
-    res.send('Hello from Express.js!');
-});
+rootRouter.use(questRoutes);
+rootRouter.use(pronounceRouter);
+rootRouter.use('/api/exercises', exerciseRouter);
 
-router.use('/quests', questRoutes);
-
-module.exports = router;
+module.exports = rootRouter;

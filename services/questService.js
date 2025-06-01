@@ -140,13 +140,13 @@ exports.getNewLesson = async (userID) => {
     return nextLesson;
 };
 
-// Lấy câu hỏi ôn tập từ bài đã học
-exports.getReviewQuestions = async (userID) => {
-    const userProgress = await UserProgress.findOne({ userID: userID }).populate('completedLessons.lessonId');
-    if (!userProgress) throw new Error('User progress not found');
-
-    const completedLessons = userProgress.completedLessons.map(completedLesson => completedLesson.lessonId);
-    const exercises = await Exercise.find({ lessonID: { $in: completedLessons } }).limit(10);
-    
-    return exercises;
+module.exports = {
+    createDailyTask: exports.createDailyTask,
+    updateTask: exports.updateTask,
+    deleteTask: exports.deleteTask,
+    getUserTasks: exports.getUserTasks,
+    assignDailyTasks: exports.assignDailyTasks,
+    updateTaskProgress: exports.updateTaskProgress,
+    completeTask: exports.completeTask,
+    getNewLesson: exports.getNewLesson
 };

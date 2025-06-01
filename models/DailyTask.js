@@ -4,7 +4,7 @@ const dailyTaskSchema = new mongoose.Schema({
   title: { type: String, required: true }, 
   type: {
     type: String,
-    enum: ["complete_lessons", "streak", "pronunciation"],
+    enum: ["learn", "review", "streak"],
     required: true,
   },
   target: { type: Number, required: true }, 
